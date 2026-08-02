@@ -38,8 +38,6 @@ out.exe inputfile.txt
 
 ### Question 2 – Breaking Vigenère Cipher using Kasiski's Method (Python)
 
-The program first estimates the key length using the **Index of Coincidence (IoC)** and then recovers the key using **cosine similarity** between the observed letter frequency distribution and the expected English letter frequency distribution.
-
 #### Usage
 
 ##### 1. Use the built-in ciphertext
