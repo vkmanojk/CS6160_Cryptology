@@ -2,7 +2,7 @@
 ## Assignment 1
 
 **Submitted by:** Manoj Kumar V K  
-**Roll No.:** *CS26RESCH11009*
+**Roll No.:** CS26RESCH11009
 
 ---
 
