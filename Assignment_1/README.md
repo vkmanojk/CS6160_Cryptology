@@ -12,7 +12,7 @@ All programs were developed and tested using **Visual Studio Code** on **Windows
 
 ---
 
-### Question 1 – Frequency Analyzer (C++)
+### Question 1 - Frequency Analyzer (C++)
 
 #### Compilation
 
@@ -36,7 +36,7 @@ out.exe inputfile.txt
 
 ---
 
-### Question 2 – Breaking Vigenère Cipher using Kasiski's Method (Python)
+### Question 2 - Breaking Vigenère Cipher using Kasiski's Method (Python)
 
 #### Usage
 
