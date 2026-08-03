@@ -8,7 +8,7 @@
 
 ### Environment
 
-All programs were developed and tested using **Visual Studio Code** on **Windows 11**.
+All programs were developed using **Visual Studio Code** on **Windows 11**.
 
 ---
 
