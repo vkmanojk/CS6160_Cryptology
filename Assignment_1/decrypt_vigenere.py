@@ -2,9 +2,9 @@ import os
 import sys
 from math import sqrt
 from collections import Counter
-from string import ascii_lowercase
 
-L = 25 # Maximum possible key length
+ascii_lowercase = "abcdefghijklmnopqrstuvwxyz"
+L = 26 # Maximum possible key length
 
 cipher =  'DVNSJ QRVPC GWBVZ QGVVP VILQJ VTURP BNPZN TGQIG SIGVW MTCIM FQUIA CCKVG CBYKQ \
             ZNTNB UCIEN UHIVF IWPQC BNKCM IGGGV OEWEV PVGFX APQKM EATDR TBIQG IPRNX JECGQ \
@@ -19,6 +19,7 @@ cipher =  'DVNSJ QRVPC GWBVZ QGVVP VILQJ VTURP BNPZN TGQIG SIGVW MTCIM FQUIA CCK
             KRAIV PTLUQ LIOUI ZNEIQ QGPAB HIMAH DCAFE ZNEIQ PCAIC RAQPC IQBPH KRPIC EKTAY \
             CIMEV WMFEW WYCGZ RCAQF GSBUC IUNVW MZCIQ PULIF PDBZG GMYAP KBNAM PVXWA QUNBT \
             BCYCH JHVPT NPVCN ITNBT SMFEG QOKCO CCIBR TCANP SZRCH WAKCO NDDCG VWMJQ GTQ'
+
 
 english = [
     8.05,  # a
