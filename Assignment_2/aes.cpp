@@ -4,12 +4,17 @@
 #include <ctime>
 #include <vector>
 #include <array>
+#include <immintrin.h> 
+#include <x86intrin.h> 
 
 using namespace std;
 
-uint8_t MASTER_KEY[4][4];
+uint8_t MASTER_KEY[16];
 uint8_t roundKeys[11][4][4];
 const uint8_t RC[10] = {0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1B, 0x36};
+
+__m128i roundKeys_NI[11];
+__m128i decRoundKeys_NI[11];
 
 const uint8_t sbox[256] = {
     0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b, 0xfe, 0xd7, 0xab, 0x76,
@@ -54,7 +59,6 @@ void shiftRows(uint8_t state[4][4]) {
     for (size_t i = 0; i < 4; ++i)
         for (size_t j = 0; j < 4; ++j) 
             temp[i][j] = state[i][(i + j) % 4];
-            
     for (size_t i = 0; i < 4; ++i)
         for (size_t j = 0; j < 4; ++j) 
             state[i][j] = temp[i][j];
@@ -65,27 +69,44 @@ void invShiftRows(uint8_t state[4][4]) {
     for (size_t i = 0; i < 4; ++i)
         for (size_t j = 0; j < 4; ++j) 
             temp[i][j] = state[i][(j - i + 4) % 4];
-            
     for (size_t i = 0; i < 4; ++i)
         for (size_t j = 0; j < 4; ++j) 
             state[i][j] = temp[i][j];
 }
 
-void runKeySchedule() {
-    for (size_t i = 0; i < 4; ++i) {
-        for (size_t j = 0; j < 4; ++j) {
-            MASTER_KEY[i][j] = rand() % 256;
-            roundKeys[0][i][j] = MASTER_KEY[i][j];
-        }
-    }
+void keySchedule() {
+    for (size_t i = 0; i < 16; ++i) 
+        roundKeys[0][i % 4][i / 4] = MASTER_KEY[i];
 
     for (size_t round = 1; round <= 10; ++round) {
         for (size_t row = 0; row < 4; ++row) 
             for (size_t col = 0; col < 4; ++col) 
                 roundKeys[round][row][col] = roundKeys[round - 1][row][col];
-                
         shiftRows(roundKeys[round]);
         roundKeys[round][0][0] ^= RC[round - 1]; 
+    }
+}
+
+void keySchedule_NI() {
+    roundKeys_NI[0] = _mm_loadu_si128((__m128i*)MASTER_KEY);
+    decRoundKeys_NI[0] = roundKeys_NI[0];
+
+    const __m128i shiftrows_mask = _mm_setr_epi8(
+        0, 5, 10, 15, 
+        4, 9, 14, 3, 
+        8, 13, 2, 7, 
+        12, 1, 6, 11
+    );
+
+    for (int round = 1; round <= 10; ++round) {
+        __m128i shifted = _mm_shuffle_epi8(roundKeys_NI[round - 1], shiftrows_mask);
+        __m128i rc_vec = _mm_setr_epi8(RC[round - 1], 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        roundKeys_NI[round] = _mm_xor_si128(shifted, rc_vec);
+
+        if (round < 10) 
+            decRoundKeys_NI[round] = _mm_aesimc_si128(roundKeys_NI[round]);
+        else 
+            decRoundKeys_NI[round] = roundKeys_NI[round];
     }
 }
 
@@ -97,19 +118,19 @@ inline uint8_t mul13(uint8_t x) { return mul2(mul2(mul2(x))) ^ mul2(mul2(x)) ^ x
 inline uint8_t mul14(uint8_t x) { return mul2(mul2(mul2(x))) ^ mul2(mul2(x)) ^ mul2(x); }
 
 void subBytes(uint8_t state[4][4]) {
-    for (int i = 0; i < 4; ++i)
-        for (int j = 0; j < 4; ++j)
+    for (size_t i = 0; i < 4; ++i)
+        for (size_t j = 0; j < 4; ++j)
             state[i][j] = sbox[state[i][j]];
 }
 
 void invSubBytes(uint8_t state[4][4]) {
-    for (int i = 0; i < 4; ++i)
-        for (int j = 0; j < 4; ++j)
+    for (size_t i = 0; i < 4; ++i)
+        for (size_t j = 0; j < 4; ++j)
             state[i][j] = rsbox[state[i][j]];
 }
 
 void mixColumns(uint8_t state[4][4]) {
-    for (int c = 0; c < 4; ++c) {
+    for (size_t c = 0; c < 4; ++c) {
         uint8_t s[4] = {state[0][c], state[1][c], state[2][c], state[3][c]};
         state[0][c] = mul2(s[0]) ^ mul3(s[1]) ^ s[2] ^ s[3];
         state[1][c] = s[0] ^ mul2(s[1]) ^ mul3(s[2]) ^ s[3];
@@ -119,7 +140,7 @@ void mixColumns(uint8_t state[4][4]) {
 }
 
 void invMixColumns(uint8_t state[4][4]) {
-    for (int c = 0; c < 4; ++c) {
+    for (size_t c = 0; c < 4; ++c) {
         uint8_t s[4] = {state[0][c], state[1][c], state[2][c], state[3][c]};
         state[0][c] = mul14(s[0]) ^ mul11(s[1]) ^ mul13(s[2]) ^ mul9(s[3]);
         state[1][c] = mul9(s[0])  ^ mul14(s[1]) ^ mul11(s[2]) ^ mul13(s[3]);
@@ -129,14 +150,14 @@ void invMixColumns(uint8_t state[4][4]) {
 }
 
 void addRoundKey(uint8_t state[4][4], const uint8_t key[4][4]) {
-    for (int i = 0; i < 4; ++i)
-        for (int j = 0; j < 4; ++j)
+    for (size_t i = 0; i < 4; ++i)
+        for (size_t j = 0; j < 4; ++j)
             state[i][j] ^= key[i][j];
 }
 
 void encryptBlock(uint8_t state[4][4]) {
     addRoundKey(state, roundKeys[0]);
-    for (int round = 1; round <= 9; ++round) {
+    for (size_t round = 1; round <= 9; ++round) {
         subBytes(state);
         shiftRows(state);
         mixColumns(state);
@@ -149,7 +170,7 @@ void encryptBlock(uint8_t state[4][4]) {
 
 void decryptBlock(uint8_t state[4][4]) {
     addRoundKey(state, roundKeys[10]);
-    for (int round = 9; round >= 1; --round) {
+    for (size_t round = 9; round >= 1; --round) {
         invShiftRows(state);
         invSubBytes(state);
         addRoundKey(state, roundKeys[round]);
@@ -160,32 +181,77 @@ void decryptBlock(uint8_t state[4][4]) {
     addRoundKey(state, roundKeys[0]);
 }
 
+void encryptBlock_NI(__m128i& state) {
+    state = _mm_xor_si128(state, roundKeys_NI[0]);
+    for (int round = 1; round <= 9; ++round) 
+        state = _mm_aesenc_si128(state, roundKeys_NI[round]);
+    state = _mm_aesenclast_si128(state, roundKeys_NI[10]);
+}
+
+void decryptBlock_NI(__m128i& state) {
+    state = _mm_xor_si128(state, decRoundKeys_NI[10]);
+    for (int round = 9; round >= 1; --round) 
+        state = _mm_aesdec_si128(state, decRoundKeys_NI[round]);
+    state = _mm_aesdeclast_si128(state, decRoundKeys_NI[0]);
+}
+
 int main() {
     srand(time(nullptr));
-
+    for (size_t i = 0; i < 16; ++i) 
+        MASTER_KEY[i] = rand() % 256;
+    
+    keySchedule();
+    keySchedule_NI();
+    
     const array<size_t, 5> plainTextSize = {
         1 * 1024, 2 * 1024, 4 * 1024, 32 * 1024, 64 * 1024
     };
-    
-    vector<vector<uint8_t>> plainText(5);
-    for (size_t i = 0; i < 5; ++i) {
-        plainText[i].resize(plainTextSize[i]);
-        for (size_t j = 0; j < plainTextSize[i]; ++j)
-            plainText[i][j] = static_cast<uint8_t>(std::rand() % 256);
-    }
-
-    runKeySchedule();
 
     for (size_t i = 0; i < 5; ++i) {
+        vector<uint8_t> originalText(plainTextSize[i]);
+        for (size_t j = 0; j < plainTextSize[i]; ++j) 
+            originalText[j] = rand() % 256;
+            
+        vector<uint8_t> plainText_Soft = originalText;
+        vector<uint8_t> plainText_NI = originalText;
+
         for (size_t block = 0; block < plainTextSize[i]; block += 16) {
             uint8_t state[4][4];
-            for (int j = 0; j < 16; ++j) 
-                state[j % 4][j / 4] = plainText[i][block + j];
+            for (size_t j = 0; j < 16; ++j) 
+                state[j % 4][j / 4] = plainText_Soft[block + j];
             encryptBlock(state);
-            decryptBlock(state); 
-            for (int j = 0; j < 16; ++j)
-                plainText[i][block + j] = state[j % 4][j / 4];
+            for (size_t j = 0; j < 16; ++j)
+                plainText_Soft[block + j] = state[j % 4][j / 4];
         }
+
+        for (size_t block = 0; block < plainTextSize[i]; block += 16) {
+            __m128i state_ni = _mm_loadu_si128((__m128i*)&plainText_NI[block]);
+            encryptBlock_NI(state_ni);
+            _mm_storeu_si128((__m128i*)&plainText_NI[block], state_ni);
+        }
+        
+        bool cipherMatch = (plainText_Soft == plainText_NI);
+        
+        for (size_t block = 0; block < plainTextSize[i]; block += 16) {
+            uint8_t state[4][4];
+            for (size_t j = 0; j < 16; ++j) 
+                state[j % 4][j / 4] = plainText_Soft[block + j];
+            decryptBlock(state);
+            for (size_t j = 0; j < 16; ++j)
+                plainText_Soft[block + j] = state[j % 4][j / 4];
+        }
+
+        for (size_t block = 0; block < plainTextSize[i]; block += 16) {
+            __m128i state_ni = _mm_loadu_si128((__m128i*)&plainText_NI[block]);
+            decryptBlock_NI(state_ni);
+            _mm_storeu_si128((__m128i*)&plainText_NI[block], state_ni);
+        }
+        
+        bool plainMatch = (plainText_Soft == originalText) && (plainText_NI == originalText);
+        
+        cout << "File Size: " << plainTextSize[i] / 1024 << " KB\n";
+        cout << "Ciphertexts Match: " << (cipherMatch ? "YES" : "NO") << "\n";
+        cout << "Decrypted Texts Match Original: " << (plainMatch ? "YES" : "NO") << "\n\n";
     }
     
     return 0;
