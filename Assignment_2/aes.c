@@ -8,8 +8,7 @@ uint8_t roundKeys [11][4][4];
 const uint8_t RC[10] = {0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1B, 0x36};
 
 //ShiftRows
-void shiftRows(uint8_t input[4][4], uint8_t output[4][4])
-{
+void shiftRows(uint8_t input[4][4], uint8_t output[4][4]) {
     for (size_t i = 0; i < 4; ++i) {
         for (size_t j = 0; j < 4; ++j) {
             output[i][j] = input[i][(i+j) % 4];
@@ -17,8 +16,8 @@ void shiftRows(uint8_t input[4][4], uint8_t output[4][4])
     }
 }
 
-void runKeySchedule(void)
-{
+//Key Schedule
+void runKeySchedule(void) {
     // Generate MASTER_KEY
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
