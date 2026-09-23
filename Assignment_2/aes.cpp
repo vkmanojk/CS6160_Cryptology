@@ -54,6 +54,13 @@ const uint8_t rsbox[256] = {
     0x17, 0x2b, 0x04, 0x7e, 0xba, 0x77, 0xd6, 0x26, 0xe1, 0x69, 0x14, 0x63, 0x55, 0x21, 0x0c, 0x7d
 };
 
+const __m128i shiftrows_mask = _mm_setr_epi8(
+        0, 5, 10, 15, 
+        4, 9, 14, 3, 
+        8, 13, 2, 7, 
+        12, 1, 6, 11
+    );
+
 void shiftRows(uint8_t state[4][4]) {
     uint8_t temp[4][4];
     for (size_t i = 0; i < 4; ++i)
@@ -90,13 +97,6 @@ void keySchedule() {
 void keySchedule_NI() {
     roundKeys_NI[0] = _mm_loadu_si128((__m128i*)MASTER_KEY);
     decRoundKeys_NI[0] = roundKeys_NI[0];
-
-    const __m128i shiftrows_mask = _mm_setr_epi8(
-        0, 5, 10, 15, 
-        4, 9, 14, 3, 
-        8, 13, 2, 7, 
-        12, 1, 6, 11
-    );
 
     for (int round = 1; round <= 10; ++round) {
         __m128i shifted = _mm_shuffle_epi8(roundKeys_NI[round - 1], shiftrows_mask);
