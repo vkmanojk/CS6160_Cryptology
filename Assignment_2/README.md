@@ -36,7 +36,7 @@ The `-march=native` flag automatically detects and enables the instruction sets 
 ### 2. $GF(2^3)$ Multiplication Table
 
 ```bash
-g++ multiplication_table.cpp -o multiplication_table -O3
+g++ multiplication_table.cpp -o multiplication_table
 ```
 
 ## Execution Instructions
