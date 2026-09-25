@@ -219,7 +219,7 @@ void warmup() {
     uint8_t sw_state[4][4] = {0};
     __m128i ni_state = _mm_setzero_si128();
     
-    for(size_t i = 0; i < 10000; i++) {
+    for(size_t i = 0; i < 10000; ++i) {
         encryptBlock(sw_state);
         decryptBlock(sw_state);
         encryptBlock_NI(ni_state);
