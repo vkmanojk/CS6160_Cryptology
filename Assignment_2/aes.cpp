@@ -6,6 +6,7 @@
 #include <vector>
 #include <array>
 #include <chrono>
+#include <algorithm>
 #include <immintrin.h> 
 #include <x86intrin.h> 
 
@@ -57,6 +58,7 @@ const uint8_t rsbox[256] = {
     0x17, 0x2b, 0x04, 0x7e, 0xba, 0x77, 0xd6, 0x26, 0xe1, 0x69, 0x14, 0x63, 0x55, 0x21, 0x0c, 0x7d
 };
 
+// Performs ShiftRows 
 void shiftRows(uint8_t state[4][4]) {
     uint8_t temp[4][4];
     for (size_t i = 0; i < 4; ++i)
@@ -67,6 +69,7 @@ void shiftRows(uint8_t state[4][4]) {
             state[i][j] = temp[i][j];
 }
 
+// Performs InvShiftRows 
 void invShiftRows(uint8_t state[4][4]) {
     uint8_t temp[4][4];
     for (size_t i = 0; i < 4; ++i)
@@ -77,6 +80,7 @@ void invShiftRows(uint8_t state[4][4]) {
             state[i][j] = temp[i][j];
 }
 
+// SW Key Schedule
 void keySchedule() {
     for (size_t i = 0; i < 16; ++i) 
         roundKeys[0][i % 4][i / 4] = MASTER_KEY[i];
@@ -90,6 +94,7 @@ void keySchedule() {
     }
 }
 
+// AES-NI Key Schedule
 void keySchedule_NI() {
     roundKeys_NI[0] = _mm_loadu_si128((__m128i*)MASTER_KEY);
     decRoundKeys_NI[0] = roundKeys_NI[0];
@@ -101,7 +106,7 @@ void keySchedule_NI() {
         12, 1, 6, 11
     );
 
-    for (int round = 1; round <= 10; ++round) {
+    for (size_t round = 1; round <= 10; ++round) {
         __m128i shifted = _mm_shuffle_epi8(roundKeys_NI[round - 1], shiftrows_mask);
         __m128i rc_vec = _mm_setr_epi8(RC[round - 1], 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
         roundKeys_NI[round] = _mm_xor_si128(shifted, rc_vec);
@@ -120,20 +125,23 @@ inline uint8_t mul11(uint8_t x) { return mul2(mul2(mul2(x))) ^ mul2(x) ^ x; }
 inline uint8_t mul13(uint8_t x) { return mul2(mul2(mul2(x))) ^ mul2(mul2(x)) ^ x; }
 inline uint8_t mul14(uint8_t x) { return mul2(mul2(mul2(x))) ^ mul2(mul2(x)) ^ mul2(x); }
 
+// Performs SubBytes 
 void subBytes(uint8_t state[4][4]) {
-    for (int i = 0; i < 4; ++i)
-        for (int j = 0; j < 4; ++j)
+    for (size_t i = 0; i < 4; ++i)
+        for (size_t j = 0; j < 4; ++j)
             state[i][j] = sbox[state[i][j]];
 }
 
+// Performs InvSubBytes 
 void invSubBytes(uint8_t state[4][4]) {
-    for (int i = 0; i < 4; ++i)
-        for (int j = 0; j < 4; ++j)
+    for (size_t i = 0; i < 4; ++i)
+        for (size_t j = 0; j < 4; ++j)
             state[i][j] = rsbox[state[i][j]];
 }
 
+// Performs MixColumns 
 void mixColumns(uint8_t state[4][4]) {
-    for (int c = 0; c < 4; ++c) {
+    for (size_t c = 0; c < 4; ++c) {
         uint8_t s[4] = {state[0][c], state[1][c], state[2][c], state[3][c]};
         state[0][c] = mul2(s[0]) ^ mul3(s[1]) ^ s[2] ^ s[3];
         state[1][c] = s[0] ^ mul2(s[1]) ^ mul3(s[2]) ^ s[3];
@@ -142,8 +150,9 @@ void mixColumns(uint8_t state[4][4]) {
     }
 }
 
+// Performs InvMixColumns 
 void invMixColumns(uint8_t state[4][4]) {
-    for (int c = 0; c < 4; ++c) {
+    for (size_t c = 0; c < 4; ++c) {
         uint8_t s[4] = {state[0][c], state[1][c], state[2][c], state[3][c]};
         state[0][c] = mul14(s[0]) ^ mul11(s[1]) ^ mul13(s[2]) ^ mul9(s[3]);
         state[1][c] = mul9(s[0])  ^ mul14(s[1]) ^ mul11(s[2]) ^ mul13(s[3]);
@@ -152,12 +161,14 @@ void invMixColumns(uint8_t state[4][4]) {
     }
 }
 
+// Performs AddRoundKey
 void addRoundKey(uint8_t state[4][4], const uint8_t key[4][4]) {
-    for (int i = 0; i < 4; ++i)
-        for (int j = 0; j < 4; ++j)
+    for (size_t i = 0; i < 4; ++i)
+        for (size_t j = 0; j < 4; ++j)
             state[i][j] ^= key[i][j];
 }
 
+// SW Encryption
 void encryptBlock(uint8_t state[4][4]) {
     addRoundKey(state, roundKeys[0]);
     for (int round = 1; round <= 9; ++round) {
@@ -171,6 +182,7 @@ void encryptBlock(uint8_t state[4][4]) {
     addRoundKey(state, roundKeys[10]);
 }
 
+// SW Decryption
 void decryptBlock(uint8_t state[4][4]) {
     addRoundKey(state, roundKeys[10]);
     for (int round = 9; round >= 1; --round) {
@@ -184,6 +196,7 @@ void decryptBlock(uint8_t state[4][4]) {
     addRoundKey(state, roundKeys[0]);
 }
 
+// NI Encryption
 void encryptBlock_NI(__m128i& state) {
     state = _mm_xor_si128(state, roundKeys_NI[0]);
     for (int round = 1; round <= 9; ++round) 
@@ -191,6 +204,7 @@ void encryptBlock_NI(__m128i& state) {
     state = _mm_aesenclast_si128(state, roundKeys_NI[10]);
 }
 
+// NI Decryption
 void decryptBlock_NI(__m128i& state) {
     state = _mm_xor_si128(state, decRoundKeys_NI[10]);
     for (int round = 9; round >= 1; --round) 
@@ -200,11 +214,12 @@ void decryptBlock_NI(__m128i& state) {
 
 volatile uint64_t dummyVariable = 0; 
 
+// Warms up CPU
 void warmup() {
     uint8_t sw_state[4][4] = {0};
     __m128i ni_state = _mm_setzero_si128();
     
-    for(int i = 0; i < 1000000; i++) {
+    for(size_t i = 0; i < 10000; i++) {
         encryptBlock(sw_state);
         decryptBlock(sw_state);
         encryptBlock_NI(ni_state);
@@ -213,16 +228,72 @@ void warmup() {
     dummyVariable += sw_state[0][0];
 }
 
+// Correctness verification
+bool verifyCorrectness() {
+    const size_t TESTS = 100;
+    bool all_pass = true;
+
+    for (size_t test = 0; test < TESTS; ++test) {
+        for (size_t i = 0; i < 16; ++i) MASTER_KEY[i] = rand() % 256;
+        keySchedule();
+        keySchedule_NI();
+
+        vector<uint8_t> pt(16);
+        for (size_t i = 0; i < 16; ++i) pt[i] = rand() % 256;
+
+        vector<uint8_t> ct_sw(16), ct_ni(16), dt_sw(16), dt_ni(16);
+
+        uint8_t state_sw[4][4];
+        for (size_t j = 0; j < 16; ++j) 
+            state_sw[j % 4][j / 4] = pt[j];
+        encryptBlock(state_sw);
+        for (size_t j = 0; j < 16; ++j) 
+            ct_sw[j] = state_sw[j % 4][j / 4];
+
+        for (size_t j = 0; j < 16; ++j) 
+            state_sw[j % 4][j / 4] = ct_sw[j];
+        decryptBlock(state_sw);
+        for (size_t j = 0; j < 16; ++j) 
+            dt_sw[j] = state_sw[j % 4][j / 4];
+
+        __m128i state_ni = _mm_loadu_si128((__m128i*)pt.data());
+        encryptBlock_NI(state_ni);
+        _mm_storeu_si128((__m128i*)ct_ni.data(), state_ni);
+
+        state_ni = _mm_loadu_si128((__m128i*)ct_ni.data());
+        decryptBlock_NI(state_ni);
+        _mm_storeu_si128((__m128i*)dt_ni.data(), state_ni);
+
+        if (dt_sw != pt || dt_ni != pt || ct_sw != ct_ni || dt_sw != dt_ni) {
+            all_pass = false;
+            break;
+        }
+    }
+
+    cout<<"--------------------------------------\n"<<endl;
+    cout<<"Correctness Verification (100 Tests)"<<endl;
+    cout<<"Software D(E(P)) == P  : "<< (all_pass ? "PASS" : "FAIL") << endl;
+    cout<<"AES-NI D(E(P)) == P    : "<< (all_pass ? "PASS" : "FAIL") << endl;
+    cout<<"SW E(P) == NI E(P)     : "<< (all_pass ? "PASS" : "FAIL") << endl;
+    cout<<"SW D(C) == NI D(C)     : "<< (all_pass ? "PASS" : "FAIL") << endl;
+    cout<<"--------------------------------------\n"<<endl;
+
+    return all_pass;
+}
+
 int main() {
     srand(time(nullptr));
-    
-    // Generate key schedules strictly outside the main timing loops[cite: 6, 8]
-    for (size_t i = 0; i < 16; ++i) 
-        MASTER_KEY[i] = rand() % 256;
-    
+
+    if (!verifyCorrectness()) {
+        cout<<"Correctness tests failed!"<<endl;
+        return 1;
+    }
+
+    // Generate keys for benchmarks
+    for (size_t i = 0; i < 16; ++i) MASTER_KEY[i] = rand() % 256;
     keySchedule();
     keySchedule_NI();
-    
+
     warmup();
 
     const array<size_t, 5> sizes = {
@@ -232,133 +303,182 @@ int main() {
         32 * 1024, 
         64 * 1024
     };
-    const int ITERATIONS = 10000; 
     
-    double throughput[4][5] = {0};
-    double cpb[4][5] = {0};
+    const size_t NUM_RUNS = 21; 
+    const size_t ITER_PER_RUN = 1000; 
     
+    double median_throughput[4][5] = {0};
+    double median_cpb[4][5] = {0};
+
     for (size_t s = 0; s < 5; ++s) {
         size_t size = sizes[s];
         
-        // Prepare original plaintexts once[cite: 6, 8]
-        vector<uint8_t> text(size);
-        for (size_t j = 0; j < size; ++j) text[j] = rand() % 256;
+        vector<uint8_t> pt(size);
+        for (size_t j = 0; j < size; ++j) 
+            pt[j] = rand() % 256;
         
-        // Output buffers to prevent in-place overwrite across iterations
+        vector<uint8_t> ct(size);
+        for (size_t block = 0; block < size; block += 16) {
+            __m128i state_ni = _mm_loadu_si128((__m128i*)&pt[block]);
+            encryptBlock_NI(state_ni);
+            _mm_storeu_si128((__m128i*)&ct[block], state_ni);
+        }
+
         vector<uint8_t> out_text(size);
+        uint64_t total_bytes = (uint64_t)size * ITER_PER_RUN;
 
-        // 1. Software Encryption
-        auto start_time = high_resolution_clock::now();
-        uint64_t start_cycles = __rdtsc();
-        
-        for (size_t i = 0; i < ITERATIONS; ++i) {
-            for (size_t block = 0; block < size; block += 16) {
-                uint8_t state[4][4];
-                // Read from immutable input
-                for (size_t j = 0; j < 16; ++j) state[j % 4][j / 4] = text[block + j];
-                encryptBlock(state);
-                // Write to separate output buffer
-                for (size_t j = 0; j < 16; ++j) out_text[block + j] = state[j % 4][j / 4];
-            }
-        }
-        
-        uint64_t end_cycles = __rdtsc();
-        auto end_time = high_resolution_clock::now();
-        duration<double> diff = end_time - start_time;
-        dummyVariable += out_text[0]; // Kept strictly outside the timed block
-        
-        uint64_t total_bytes = (uint64_t)size * ITERATIONS;
-        throughput[0][s] = (total_bytes / (1024.0 * 1024.0)) / diff.count(); 
-        cpb[0][s] = (double)(end_cycles - start_cycles) / total_bytes; 
+        vector<double> runs_tp_sw_enc(NUM_RUNS), runs_cpb_sw_enc(NUM_RUNS);
+        vector<double> runs_tp_ni_enc(NUM_RUNS), runs_cpb_ni_enc(NUM_RUNS);
+        vector<double> runs_tp_sw_dec(NUM_RUNS), runs_cpb_sw_dec(NUM_RUNS);
+        vector<double> runs_tp_ni_dec(NUM_RUNS), runs_cpb_ni_dec(NUM_RUNS);
 
-        // 2. AES-NI Encryption
-        start_time = high_resolution_clock::now();
-        start_cycles = __rdtsc();
-        
-        for (size_t i = 0; i < ITERATIONS; ++i) {
-            for (size_t block = 0; block < size; block += 16) {
-                __m128i state_ni = _mm_loadu_si128((__m128i*)&text[block]);
-                encryptBlock_NI(state_ni);
-                _mm_storeu_si128((__m128i*)&out_text[block], state_ni); 
+        for (size_t run = 0; run < NUM_RUNS; ++run) {
+            
+            // SW Encryption
+            _mm_lfence();
+            auto start_time = high_resolution_clock::now();
+            uint64_t start_cycles = __rdtsc();
+            _mm_lfence();
+            
+            for (size_t i = 0; i < ITER_PER_RUN; ++i) {
+                for (size_t block = 0; block < size; block += 16) {
+                    uint8_t state[4][4];
+                    for (size_t j = 0; j < 16; ++j) state[j % 4][j / 4] = pt[block + j];
+                    encryptBlock(state);
+                    for (size_t j = 0; j < 16; ++j) out_text[block + j] = state[j % 4][j / 4];
+                }
             }
-        }
-        
-        end_cycles = __rdtsc();
-        end_time = high_resolution_clock::now();
-        diff = end_time - start_time;
-        dummyVariable += out_text[0];
-        
-        throughput[1][s] = (total_bytes / (1024.0 * 1024.0)) / diff.count();
-        cpb[1][s] = (double)(end_cycles - start_cycles) / total_bytes;
+            
+            _mm_lfence(); 
+            uint64_t end_cycles = __rdtsc();
+            auto end_time = high_resolution_clock::now();
+            _mm_lfence();
+            
+            dummyVariable += out_text[0]; 
+            duration<double> diff = end_time - start_time;
+            runs_tp_sw_enc[run] = (total_bytes / (1024.0 * 1024.0)) / diff.count(); 
+            runs_cpb_sw_enc[run] = (double)(end_cycles - start_cycles) / total_bytes; 
 
-        // 3. Software Decryption
-        start_time = high_resolution_clock::now();
-        start_cycles = __rdtsc();
-        
-        for (size_t i = 0; i < ITERATIONS; ++i) {
-            for (size_t block = 0; block < size; block += 16) {
-                uint8_t state[4][4];
-                for (size_t j = 0; j < 16; ++j) state[j % 4][j / 4] = text[block + j];
-                decryptBlock(state);
-                for (size_t j = 0; j < 16; ++j) out_text[block + j] = state[j % 4][j / 4];
+            // NI Encryption
+            _mm_lfence();
+            start_time = high_resolution_clock::now();
+            start_cycles = __rdtsc();
+            _mm_lfence();
+            
+            for (size_t i = 0; i < ITER_PER_RUN; ++i) {
+                for (size_t block = 0; block < size; block += 16) {
+                    __m128i state_ni = _mm_loadu_si128((__m128i*)&pt[block]);
+                    encryptBlock_NI(state_ni);
+                    _mm_storeu_si128((__m128i*)&out_text[block], state_ni); 
+                }
             }
-        }
-        
-        end_cycles = __rdtsc();
-        end_time = high_resolution_clock::now();
-        diff = end_time - start_time;
-        dummyVariable += out_text[0];
-        
-        throughput[2][s] = (total_bytes / (1024.0 * 1024.0)) / diff.count();
-        cpb[2][s] = (double)(end_cycles - start_cycles) / total_bytes;
+            
+            _mm_lfence(); 
+            end_cycles = __rdtsc();
+            end_time = high_resolution_clock::now();
+            _mm_lfence();
+            
+            dummyVariable += out_text[0];
+            diff = end_time - start_time;
+            runs_tp_ni_enc[run] = (total_bytes / (1024.0 * 1024.0)) / diff.count();
+            runs_cpb_ni_enc[run] = (double)(end_cycles - start_cycles) / total_bytes;
 
-        // 4. AES-NI Decryption
-        start_time = high_resolution_clock::now();
-        start_cycles = __rdtsc();
-        
-        for (size_t i = 0; i < ITERATIONS; ++i) {
-            for (size_t block = 0; block < size; block += 16) {
-                __m128i state_ni = _mm_loadu_si128((__m128i*)&text[block]);
-                decryptBlock_NI(state_ni);
-                _mm_storeu_si128((__m128i*)&out_text[block], state_ni);
+            // SW Decryption
+            _mm_lfence();
+            start_time = high_resolution_clock::now();
+            start_cycles = __rdtsc();
+            _mm_lfence();
+            
+            for (size_t i = 0; i < ITER_PER_RUN; ++i) {
+                for (size_t block = 0; block < size; block += 16) {
+                    uint8_t state[4][4];
+                    for (size_t j = 0; j < 16; ++j) state[j % 4][j / 4] = ct[block + j];
+                    decryptBlock(state);
+                    for (size_t j = 0; j < 16; ++j) out_text[block + j] = state[j % 4][j / 4];
+                }
             }
+            
+            _mm_lfence(); 
+            end_cycles = __rdtsc();
+            end_time = high_resolution_clock::now();
+            _mm_lfence();
+            
+            dummyVariable += out_text[0];
+            diff = end_time - start_time;
+            runs_tp_sw_dec[run] = (total_bytes / (1024.0 * 1024.0)) / diff.count();
+            runs_cpb_sw_dec[run] = (double)(end_cycles - start_cycles) / total_bytes;
+
+            // NI Decryption
+            _mm_lfence();
+            start_time = high_resolution_clock::now();
+            start_cycles = __rdtsc();
+            _mm_lfence();
+            
+            for (size_t i = 0; i < ITER_PER_RUN; ++i) {
+                for (size_t block = 0; block < size; block += 16) {
+                    __m128i state_ni = _mm_loadu_si128((__m128i*)&ct[block]);
+                    decryptBlock_NI(state_ni);
+                    _mm_storeu_si128((__m128i*)&out_text[block], state_ni);
+                }
+            }
+            
+            _mm_lfence(); 
+            end_cycles = __rdtsc();
+            end_time = high_resolution_clock::now();
+            _mm_lfence();
+            
+            dummyVariable += out_text[0];
+            diff = end_time - start_time;
+            runs_tp_ni_dec[run] = (total_bytes / (1024.0 * 1024.0)) / diff.count();
+            runs_cpb_ni_dec[run] = (double)(end_cycles - start_cycles) / total_bytes;
         }
-        
-        end_cycles = __rdtsc();
-        end_time = high_resolution_clock::now();
-        diff = end_time - start_time;
-        dummyVariable += out_text[0];
-        
-        throughput[3][s] = (total_bytes / (1024.0 * 1024.0)) / diff.count();
-        cpb[3][s] = (double)(end_cycles - start_cycles) / total_bytes;
+
+        sort(runs_tp_sw_enc.begin(), runs_tp_sw_enc.end());
+        sort(runs_cpb_sw_enc.begin(), runs_cpb_sw_enc.end());
+        median_throughput[0][s] = runs_tp_sw_enc[NUM_RUNS / 2];
+        median_cpb[0][s] = runs_cpb_sw_enc[NUM_RUNS / 2];
+
+        sort(runs_tp_ni_enc.begin(), runs_tp_ni_enc.end());
+        sort(runs_cpb_ni_enc.begin(), runs_cpb_ni_enc.end());
+        median_throughput[1][s] = runs_tp_ni_enc[NUM_RUNS / 2];
+        median_cpb[1][s] = runs_cpb_ni_enc[NUM_RUNS / 2];
+
+        sort(runs_tp_sw_dec.begin(), runs_tp_sw_dec.end());
+        sort(runs_cpb_sw_dec.begin(), runs_cpb_sw_dec.end());
+        median_throughput[2][s] = runs_tp_sw_dec[NUM_RUNS / 2];
+        median_cpb[2][s] = runs_cpb_sw_dec[NUM_RUNS / 2];
+
+        sort(runs_tp_ni_dec.begin(), runs_tp_ni_dec.end());
+        sort(runs_cpb_ni_dec.begin(), runs_cpb_ni_dec.end());
+        median_throughput[3][s] = runs_tp_ni_dec[NUM_RUNS / 2];
+        median_cpb[3][s] = runs_cpb_ni_dec[NUM_RUNS / 2];
     }
 
-    cout << "\nThroughput (MB/s)" << endl;
-    cout << left << setw(20) << "Implementation" << "| 1 KB      | 2 KB      | 4 KB      | 32 KB     | 64 KB" << endl;
-    cout << string(80, '-') << endl;
+    cout<<"Median Throughput (MB/s)"<<endl;
+    cout<<left << setw(20)<<"Implementation" << "| 1 KB      | 2 KB      | 4 KB      | 32 KB     | 64 KB"<<endl;
+    cout<<string(80, '-')<<endl;
     const string labels[] = {"Software Encryption", "AES-NI Encryption", "Software Decryption", "AES-NI Decryption"};
     
-    for (int i = 0; i < 4; ++i) {
-        cout << left << setw(20) << labels[i] << "| ";
-        for (int j = 0; j < 5; ++j) {
-            cout << fixed << setprecision(2) << setw(9) << throughput[i][j] << " | ";
-        }
-        cout << endl;
+    for (size_t i = 0; i < 4; ++i) {
+        cout<<left<<setw(20)<<labels[i]<<"| ";
+        for (size_t j = 0; j < 5; ++j)
+            cout<<fixed<<setprecision(2)<<setw(9)<<median_throughput[i][j]<<" | ";
+        cout<<endl;
     }
 
-    cout << "\nCycles per Byte (CPB)" << endl;
-    cout << left << setw(20) << "Implementation" << "| 1 KB      | 2 KB      | 4 KB      | 32 KB     | 64 KB" << endl;
-    cout << string(80, '-') << endl;
+    cout<<"\nMedian Cycles per Byte (CPB)" << endl;
+    cout<<left<<setw(20)<<"Implementation"<<"| 1 KB      | 2 KB      | 4 KB      | 32 KB     | 64 KB"<<endl;
+    cout<<string(80, '-')<<endl;
     
-    for (int i = 0; i < 4; ++i) {
-        cout << left << setw(20) << labels[i] << "| ";
-        for (int j = 0; j < 5; ++j) {
-            cout << fixed << setprecision(2) << setw(9) << cpb[i][j] << " | ";
-        }
-        cout << endl;
+    for (size_t i = 0; i < 4; ++i) {
+        cout<<left<<setw(20)<<labels[i]<< "| ";
+        for (size_t j = 0; j < 5; ++j) 
+            cout<<fixed<<setprecision(2)<<setw(9)<<median_cpb[i][j]<< " | ";
+        cout<<endl;
     }
 
-    if (dummyVariable == 123456789) { cout << " " << endl; } 
+    if (dummyVariable == 123456789) 
+        cout<<endl;
 
     return 0;
 }
