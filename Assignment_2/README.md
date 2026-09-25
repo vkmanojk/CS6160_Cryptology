@@ -31,7 +31,7 @@
 ```bash
 g++ aes.cpp -o aes -march=native -O3
 ```
-*Note:* The `-march=native` flag automatically detects and enables the instruction sets supported by the host CPU (including AES-NI, SSE4.1, and SSSE3). This avoids having to explicitly specify individual architecture flags such as `-maes` or `-msse2`. The `-O3` flag enables aggressive compiler optimization, which is critical for establishing an accurate software performance baseline.
+The `-march=native` flag automatically detects and enables the instruction sets supported by the host CPU (including AES-NI, SSE4.1, and SSSE3). This avoids having to explicitly specify individual architecture flags such as `-maes` or `-msse2`. The `-O3` flag enables aggressive compiler optimization, which is critical for establishing an accurate software performance baseline.
 
 ### 2. $GF(2^3)$ Multiplication Table
 
@@ -45,10 +45,10 @@ g++ multiplication_table.cpp -o multiplication_table -O3
 ```bash
 ./aes
 ```
-*Behavior:* The program first executes a 100-trial correctness verification suite using randomly generated keys and plaintexts. If verification passes, it runs a CPU warmup followed by the performance benchmark. It outputs the median throughput (MB/s) and cycles per byte (CPB) across 21 independent runs for payload sizes ranging from 1 KB to 64 KB.
+The program first executes a 100-trial correctness verification suite using randomly generated keys and plaintexts. If verification passes, it runs a CPU warmup followed by the performance benchmark. It outputs the median throughput (MB/s) and cycles per byte (CPB) across 21 independent runs for payload sizes ranging from 1 KB to 64 KB.
 
 **Run the multiplication table:**
 ```bash
 ./multiplication_table
 ```
-*Behavior:* The program calculates and prints the formatted $8\times8$ multiplication table for the extension field $GF(2^3)$.
+The program calculates and prints the formatted $8\times8$ multiplication table for the extension field $GF(2^3)$.
